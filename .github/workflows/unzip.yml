@@ -14,24 +14,40 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Extract ZIP
         run: |
+          set -e
+          test -f Sukuna-Baileys.zip
           mkdir -p extracted
           unzip -o Sukuna-Baileys.zip -d extracted
 
-      - name: Move files to repository root
+      - name: Prepare source files
         run: |
+          set -e
+
+          rm -rf extracted/.github
+
           cp -a extracted/. .
+
           rm -rf extracted
           rm -f Sukuna-Baileys.zip
 
-      - name: Commit changes
+      - name: Commit and push
         run: |
+          set -e
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add -A
-          git diff --cached --quiet || git commit -m "Extract Sukuna Baileys source"
-          git push
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Extract Sukuna Baileys source"
+            git push origin HEAD:main
+          fi
           
