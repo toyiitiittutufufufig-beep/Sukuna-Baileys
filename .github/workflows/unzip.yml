@@ -1,5 +1,5 @@
 
-name: Extract Baileys Source
+name: Extract Sukuna Baileys
 
 on:
   workflow_dispatch:
@@ -18,29 +18,20 @@ jobs:
       - name: Extract ZIP
         run: |
           mkdir -p extracted
-          unzip -o Baileys.zip -d extracted
-          find extracted -mindepth 1 -maxdepth 1 -type d
+          unzip -o Sukuna-Baileys.zip -d extracted
 
-      - name: Move source files to repository root
+      - name: Move files to repository root
         run: |
-          ROOT=$(find extracted -mindepth 1 -maxdepth 1 -type d | head -n 1)
-
-          if [ -z "$ROOT" ]; then
-            echo "ZIP structure not recognized"
-            exit 1
-          fi
-
-          cp -a "$ROOT"/. .
-
+          cp -a extracted/. .
           rm -rf extracted
           rm -f Sukuna-Baileys.zip
 
-      - name: Commit extracted files
+      - name: Commit changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add -A
-          git diff --cached --quiet || git commit -m "Extract Baileys source"
+          git diff --cached --quiet || git commit -m "Extract Sukuna Baileys source"
           git push
           
