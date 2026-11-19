@@ -1,34 +1,58 @@
-name: 1 - Wipe repo (keep zip + workflows)
+name: 2 - Unzip into repo
 
 on:
   workflow_dispatch:
+    inputs:
+      zip_name:
+        description: "اسم الزيب (سيبه فاضي لو فيه زيب واحد بس)"
+        required: false
+        default: ""
+      delete_zip:
+        description: "امسح الزيب بعد الفك؟"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 jobs:
-  wipe:
+  unzip:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Show zips found
-        run: |
-          echo "ملفات الزيب في الجذر:"
-          ls -la ./*.zip 2>/dev/null || { echo "❌ مفيش أي ملف .zip في جذر المستودع — ارفعه الأول"; exit 1; }
-
-      - name: Delete everything except .git, .github and *.zip
+      - name: Unzip into repo
         shell: bash
+        env:
+          ZIP_IN: ${{ github.event.inputs.zip_name }}
+          DEL_ZIP: ${{ github.event.inputs.delete_zip }}
         run: |
           set -euo pipefail
           shopt -s dotglob nullglob
-          for f in ./*; do
+          if [ -n "$ZIP_IN" ]; then
+            ZIP="$ZIP_IN"
+          else
+            zips=(./*.zip)
+            if [ "${#zips[@]}" -eq 0 ]; then echo "❌ مفيش أي .zip في جذر المستودع"; exit 1; fi
+            if [ "${#zips[@]}" -gt 1 ]; then echo "❌ فيه أكتر من زيب (${zips[*]}) — اكتب الاسم في zip_name"; exit 1; fi
+            ZIP="$(basename "${zips[0]}")"
+          fi
+          [ -f "$ZIP" ] || { echo "❌ الملف $ZIP مش موجود"; exit 1; }
+          echo "فك: $ZIP"
+          TMP="$(mktemp -d)"
+          unzip -q "$ZIP" -d "$TMP"
+          SRC="$TMP"
+          items=("$TMP"/*)
+          if [ "${#items[@]}" -eq 1 ] && [ -d "${items[0]}" ]; then SRC="${items[0]}"; fi
+          [ -n "$(ls -A "$SRC")" ] || { echo "❌ الزيب فاضي"; exit 1; }
+          for f in "$SRC"/*; do
             n="$(basename "$f")"
             case "$n" in .git|.github) continue ;; esac
-            case "$n" in *.zip) [ -f "$f" ] && continue ;; esac
-            rm -rf -- "$f"
+            cp -a -- "$f" ./
           done
-          echo "الباقي:"; ls -la
+          if [ "$DEL_ZIP" = "true" ]; then rm -f -- "$ZIP"; fi
+          rm -rf "$TMP"
+          echo "بعد الفك:"; ls -la
 
       - name: Commit and push
         shell: bash
@@ -37,6 +61,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          if git diff --cached --quiet; then echo "مفيش حاجة اتمسحت."; exit 0; fi
-          git commit -m "chore: wipe repo (kept zip + workflows)"
+          if git diff --cached --quiet; then echo "⚠️ مفيش تغييرات (الملفات مطابقة)."; exit 0; fi
+          git commit -m "chore: unzip into repo"
           git push
