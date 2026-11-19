@@ -3,9 +3,9 @@ import { proto } from '../../WAProto/index.js'
 
 export type InteractiveResponse = {
     type: 'list' | 'buttons' | 'native-flow' | 'template'
-    id?: string
-    text?: string
-    name?: string
+    id?: string | null
+    text?: string | null
+    name?: string | null
     params?: Record<string, unknown> | string
     raw: unknown
 }
