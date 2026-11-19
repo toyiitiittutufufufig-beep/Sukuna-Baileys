@@ -1,78 +1,42 @@
-name: Replace repo from zip
+name: 1 - Wipe repo (keep zip + workflows)
 
-# طريقة الاستخدام: ارفع ملف الزيب (الاسم الافتراضي update.zip) في جذر المستودع.
-# الـ workflow بيمسح كل حاجة في المستودع ما عدا: .git و .github والزيب نفسه،
-# وبعدين يفك الزيب في الجذر (ولو الزيب فيه مجلد رئيسي واحد بيطلّع اللي جواه).
 on:
   workflow_dispatch:
-    inputs:
-      zip_name:
-        description: "اسم ملف الزيب في جذر المستودع"
-        default: "update.zip"
-        required: true
-  push:
-    paths:
-      - "update.zip"
 
 permissions:
   contents: write
 
-concurrency:
-  group: replace-from-zip
-  cancel-in-progress: false
-
 jobs:
-  replace:
+  wipe:
     runs-on: ubuntu-latest
-    env:
-      ZIP_NAME: ${{ github.event.inputs.zip_name || 'update.zip' }}
-      KEEP_ZIP: "true"   # خليها "false" لو عايز الزيب يتمسح بعد الفك
     steps:
       - uses: actions/checkout@v4
 
-      - name: Replace everything with zip contents
+      - name: Show zips found
+        run: |
+          echo "ملفات الزيب في الجذر:"
+          ls -la ./*.zip 2>/dev/null || { echo "❌ مفيش أي ملف .zip في جذر المستودع — ارفعه الأول"; exit 1; }
+
+      - name: Delete everything except .git, .github and *.zip
         shell: bash
         run: |
           set -euo pipefail
-          if [ ! -f "$ZIP_NAME" ]; then
-            echo "الملف $ZIP_NAME مش موجود في جذر المستودع — مفيش حاجة تتعمل."
-            echo "SKIP=1" >> "$GITHUB_ENV"; exit 0
-          fi
-          TMP="$(mktemp -d)"; ZIP_TMP="$(mktemp -u).zip"
-          cp "$ZIP_NAME" "$ZIP_TMP"
-          unzip -q "$ZIP_TMP" -d "$TMP"
-          # لو في مجلد رئيسي واحد بس (زي Repo-main/) نشتغل من جواه
-          SRC="$TMP"
           shopt -s dotglob nullglob
-          items=("$TMP"/*)
-          if [ "${#items[@]}" -eq 1 ] && [ -d "${items[0]}" ]; then SRC="${items[0]}"; fi
-          # مسح كل حاجة ما عدا .git و .github والزيب
           for f in ./*; do
             n="$(basename "$f")"
-            [ "$n" = ".git" ] && continue
-            [ "$n" = ".github" ] && continue
-            [ "$n" = "$ZIP_NAME" ] && continue
+            case "$n" in .git|.github) continue ;; esac
+            case "$n" in *.zip) [ -f "$f" ] && continue ;; esac
             rm -rf -- "$f"
           done
-          # نسخ المحتوى الجديد (بدون ما نلمس .git)
-          for f in "$SRC"/*; do
-            n="$(basename "$f")"
-            [ "$n" = ".git" ] && continue
-            cp -a -- "$f" ./
-          done
-          if [ "$KEEP_ZIP" != "true" ]; then rm -f -- "$ZIP_NAME"; fi
-          rm -rf "$TMP" "$ZIP_TMP"
-          echo "تم. محتوى المستودع دلوقتي:"; ls -la
+          echo "الباقي:"; ls -la
 
       - name: Commit and push
-        if: env.SKIP != '1'
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          if git diff --cached --quiet; then echo "مفيش تغييرات."; exit 0; fi
-          git commit -m "chore: replace repo contents from ${ZIP_NAME}"
+          if git diff --cached --quiet; then echo "مفيش حاجة اتمسحت."; exit 0; fi
+          git commit -m "chore: wipe repo (kept zip + workflows)"
           git push
-          
